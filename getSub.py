@@ -8,6 +8,7 @@
 @Blog: i.2017.work
 '''
 
+import subprocess
 import requests
 import xlwt
 
@@ -83,14 +84,16 @@ def priIt_Youget(li):
     i = 0
     for v in li:
         i += 1
-        if i > 5:  #下载最近10条
+        if i > 5:  #下载最近几条
             break
         pr += ("\nrem " + str(v["title"]))
         pr += ("\nrem you-get -c netscape_cookie.txt https://www.bilibili.com/video/av" + str(v["aid"]))
         # pr += ("\nyou-get -c netscape_cookie.txt https://www.bilibili.com/video/" + str(v["bvid"]))
-    with open("you-get_top10.bat", "w", encoding='utf-8') as f:
+    fileName = "you-get_download.bat"
+    with open(fileName, "w", encoding='gbk') as f:
         f.write(pr)
         f.close()
+    subprocess.run(fileName)
 
 if __name__ == "__main__":
     main()
