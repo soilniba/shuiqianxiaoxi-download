@@ -34,7 +34,7 @@ def priIt_Youget(li):
         if i > 5:  #下载最近几条
             break
         pr += ("\nrem " + str(v["title"]))
-        pr += ("\nrem you-get -c netscape_cookie.txt https://www.bilibili.com/video/av" + str(v["aid"]))
+        pr += ("\nyou-get -c netscape_cookie.txt https://www.bilibili.com/video/av" + str(v["aid"]))
         # pr += ("\nyou-get -c netscape_cookie.txt https://www.bilibili.com/video/" + str(v["bvid"]))
     fileName = "you-get_download.bat"
     with open(fileName, "w", encoding='gbk') as f:
