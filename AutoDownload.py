@@ -1,5 +1,6 @@
 import subprocess
 import requests
+import os
 
 getAllIndex = 0
 getShuiIndex = 0
@@ -44,7 +45,7 @@ def getCon(root, li):  # 传入JSon解析内容进列表
             print("※", v["title"])
 
 def priIt_Youget(li):
-    pr = ""
+    pr = "cd /d %~dp0"
     i = 0
     for v in li:
         i += 1
@@ -53,7 +54,8 @@ def priIt_Youget(li):
         pr += ("\nrem " + str(v["title"]))
         pr += ("\nyou-get -c netscape_cookie.txt https://www.bilibili.com/video/av" + str(v["aid"]))
         # pr += ("\nyou-get -c netscape_cookie.txt https://www.bilibili.com/video/" + str(v["bvid"]))
-    fileName = "you-get_download.bat"
+    filePath = os.path.split(os.path.realpath(__file__))[0]
+    fileName = filePath + "\you-get_download.bat"
     with open(fileName, "w", encoding='gbk') as f:
         f.write(pr)
         f.close()
