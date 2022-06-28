@@ -66,7 +66,8 @@ def getCon(root, li):  # 传入JSon解析内容进列表
             print("※", v["title"])
 
 def priIt_Youget(li):
-    pr = "cd /d %~dp0"
+    pr = "cd /d %~dp0\n"
+    # pr += 'if "%1"=="hide" goto CmdBegin\nstart mshta vbscript:createobject("wscript.shell").run("""%~0"" hide",0)(window.close)&&exit\n:CmdBegin\n'
     i = 0
     for v in li:
         i += 1
@@ -80,7 +81,7 @@ def priIt_Youget(li):
     with open(fileName, "w", encoding='gbk') as f:
         f.write(pr)
         f.close()
-    subprocess.run(fileName)
+    os.system('start /min cmd.exe /c ' + fileName)
 
 if __name__ == "__main__":
     main()
