@@ -3,3 +3,4 @@
 *.flv
 *.mp4
 *.download
+spider/config.py

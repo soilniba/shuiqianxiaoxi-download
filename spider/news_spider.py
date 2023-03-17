@@ -7,6 +7,8 @@ import requests
 import os
 import re
 import gzip
+import openai
+from config import OPENAI_API_KEY, FEISHU_ROBOT_NEWS, FEISHU_ROBOT_ERROR
 
 # 获取脚本所在目录的路径
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -14,8 +16,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 # 切换工作目录到脚本所在目录
 os.chdir(script_dir)
 
-feishu_robot_news = '8d3aa15c-8ede-4e7b-a0ae-335fce9b3bb7'
-feishu_robot_error = '34006ae3-b50a-48a6-9871-eb2a1b43223c'
+openai.api_key = OPENAI_API_KEY
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
 headers = {
@@ -49,41 +50,124 @@ def get_news():
         print("----新闻读取完毕----")
     else:
         print("thread_list读取失败")
-        error_file_name = 'last_send_time_error.log'
-        last_send_time = read_last_time(error_file_name)
-        if time.time() - last_send_time > 29 * 60:  #报错间隔时间
-            text_msg = '出错啦！抓不到新闻啦！'
-            feishu_msg = {"content": []}
-            feishu_msg["content"].append([
-                {
-                    "tag": "text",
-                    "text": text_msg
-                },
-            ])
-            send_feishu_robot(feishu_robot_error, feishu_msg)
-            write_last_time(error_file_name)
+        send_error_msg('出错啦！抓不到新闻啦！')
     print(f'新闻新增{add_num}条')
     write_json(file_name, json_all)
     if new_news_list:
-        send_news(new_news_list)
+        for data_info in new_news_list:
+            href = data_info["href"]
+            text = get_article(href)
+            answer = ask_gpt(text)
+            data_info['description'] = answer
+            json_all[href] = data_info
+            write_json(file_name, json_all)
+            send_news(data_info)
 
-def send_news(new_news_list):
+def send_news(data_info):
     feishu_msg = {"content": []}
     # feishu_msg["title"] = '刚刚收到的新消息：'
-    # for data_info in update_list:
-    for data_info in new_news_list:
+    feishu_msg["content"].append([
+        {
+            "tag": "text",
+            "text": data_info['date']
+        },
+        {
+            "tag": "a",
+            "text": data_info['title'],
+            "href": f'http://www.gov.cn{data_info["href"]}'
+        }
+    ])
+    feishu_msg["content"].append([
+        {
+            "tag": "text",
+            "text": data_info['description']
+        },
+    ])
+    send_feishu_robot(FEISHU_ROBOT_NEWS, feishu_msg)
+
+def send_error_msg(text):
+    error_file_name = 'last_send_time_error.log'
+    last_send_time = read_last_time(error_file_name)
+    if time.time() - last_send_time > 29 * 60:  #报错间隔时间
+        text_msg = text
+        feishu_msg = {"content": []}
         feishu_msg["content"].append([
             {
                 "tag": "text",
-                "text": data_info['date']
+                "text": text_msg
             },
-            {
-                "tag": "a",
-                "text": data_info['title'],
-                "href": f'http://www.gov.cn{data_info["href"]}'
-            }
         ])
-    send_feishu_robot(feishu_robot_news, feishu_msg)
+        send_feishu_robot(FEISHU_ROBOT_ERROR, feishu_msg)
+        write_last_time(error_file_name)
+
+def get_article(href):
+    url = f'http://www.gov.cn{href}'
+    # url = 'http://www.gov.cn/xinwen/2023-03/17/content_5747299.htm'
+    # url = 'http://www.gov.cn/zhengce/zhengceku/2023-03/17/content_5747143.htm'
+    # url = 'http://www.gov.cn/zhengce/zhengceku/2023-03/16/content_5746998.htm'
+    response = requests.get(url)
+    html = response.content
+    # 解析网页内容
+    soup = BeautifulSoup(html, 'html.parser')
+    # 提取网页正文
+    text = soup.get_text()
+    # 去除多余空格、换行符等无用字符
+    text = re.sub(r'\s+', ' ', text).strip()
+    # 将多个连续空格替换为一个空格
+    text = re.sub(r'\s+', ' ', text)
+    # 输出处理后的文本
+    # print(url, text)
+    return text
+
+def ask_gpt(text):
+    print(len(text))
+    if len(text) > 4000:
+        text = text[:4000]
+    # 设置要发送到API的提示语
+    prompt = f"请对以下新闻文章进行概述：\n{text}"
+    message = []
+    message.append({'role': 'system', 'content': '请对以下新闻文章进行概述'})
+    message.append({'role': 'user', 'content': text})
+    
+
+    try:
+        response = openai.ChatCompletion.create(
+            model = "gpt-3.5-turbo-0301",  # 对话模型的名称
+            messages = message,
+            temperature = 0.9,  # 值在[0,1]之间，越大表示回复越具有不确定性
+            #max_tokens=4096,  # 回复最大的字符数
+            top_p = 1,
+            frequency_penalty = 0.0,  # [-2,2]之间，该值越大则更倾向于产生不同的内容
+            presence_penalty = 0.0,  # [-2,2]之间，该值越大则更倾向于产生不同的内容
+        )
+        print("[ChatGPT] reply={}, total_tokens={}".format(response.choices[0]['message']['content'], response["usage"]["total_tokens"]))
+        return response.choices[0]['message']['content']
+    except Exception as e:
+        print(e)
+        send_error_msg(f'openai api error:{e}')
+    # except openai.error.RateLimitError as e:
+    #     # rate limit exception
+    #     print(e)
+    #     if retry_count < 1:
+    #         time.sleep(5)
+    #         logger.warn("[OPEN_AI] RateLimit exceed, 第{}次重试".format(retry_count+1))
+    #         return self.reply_text(session, session_id, retry_count+1)
+    #     else:
+    #         return {"completion_tokens": 0, "content": "提问太快啦，请休息一下再问我吧"}
+    # except openai.error.APIConnectionError as e:
+    #     # api connection exception
+    #     logger.warn(e)
+    #     logger.warn("[OPEN_AI] APIConnection failed")
+    #     return {"completion_tokens": 0, "content":"我连接不到你的网络"}
+    # except openai.error.Timeout as e:
+    #     logger.warn(e)
+    #     logger.warn("[OPEN_AI] Timeout")
+    #     return {"completion_tokens": 0, "content":"我没有收到你的消息"}
+    # except Exception as e:
+    #     # unknown exception
+    #     logger.exception(e)
+    #     Session.clear_session(session_id)
+    #     return {"completion_tokens": 0, "content": "请再问我一次吧"}
 
 def get_html(url):
         url = urllib.parse.quote(url, safe='/:?=&')
@@ -132,7 +216,6 @@ def get_page(thread_list, json_all, new_news_list):
             new_news_list.insert(0, data_info)
             global add_num
             add_num += 1
-
 
 def write_json(file_name, json_all):
     str_json = json.dumps(json_all, indent=2, ensure_ascii=False)
