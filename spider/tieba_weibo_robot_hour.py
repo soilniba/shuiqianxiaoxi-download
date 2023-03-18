@@ -5,9 +5,7 @@ import time
 import random
 import math
 import os
-robot_open = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=e012d034-7c19-4ee9-a713-9e674ec9ce34'
-robot_private = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=36f924a9-4911-4c7f-aa36-900c01c44237'
-robot_error = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a4973542-3002-4cab-b853-be6b815d4cfa'
+from config import wx_robot_open, wx_robot_private, wx_robot_error, wx_robot_external, feishu_robot_private
 
 def get_tieba(tieba_name):
     file_name = f'tieba_{tieba_name}.json'

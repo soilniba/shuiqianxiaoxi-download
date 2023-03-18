@@ -4,12 +4,7 @@ import json
 import time
 import requests
 import os
-
-wx_robot_open = 'e012d034-7c19-4ee9-a713-9e674ec9ce34'
-wx_robot_private = '36f924a9-4911-4c7f-aa36-900c01c44237'
-wx_robot_error = 'a4973542-3002-4cab-b853-be6b815d4cfa'
-wx_robot_external = '274c2867-0698-4165-aabb-f02e0d60d4c0'
-feishu_robot_private = 'af4ca118-394a-4b55-96b8-3c7beb2d18c7'
+from config import wx_robot_open, wx_robot_private, wx_robot_error, wx_robot_external, feishu_robot_private
 
 def get_tieba(tieba_name, robot_url, feishu_robot_key = False):
     file_name = f'tieba_{tieba_name}.json'

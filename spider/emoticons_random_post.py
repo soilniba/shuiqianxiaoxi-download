@@ -7,11 +7,9 @@ import os
 import re
 import random
 from requests_toolbelt import MultipartEncoder
+from config import feishu_robot_error, feishu_robot_biaoqing_qihua, feishu_robot_biaoqing_fanquan
 
 
-feishu_robot_error = '34006ae3-b50a-48a6-9871-eb2a1b43223c'
-feishu_robot_biaoqing_qihua = 'b9e4bd76-2d67-4628-a4eb-d7aaba01d019'
-feishu_robot_biaoqing_fanquan = '974c4517-d936-4987-8b25-206fa4430bbb'
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
 headers = {

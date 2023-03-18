@@ -8,7 +8,7 @@ import os
 import re
 import gzip
 import openai
-from config import OPENAI_API_KEY, FEISHU_ROBOT_NEWS, FEISHU_ROBOT_ERROR
+from config import openai_api_key, feishu_robot_news, feishu_robot_error
 
 # 获取脚本所在目录的路径
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -16,7 +16,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 # 切换工作目录到脚本所在目录
 os.chdir(script_dir)
 
-openai.api_key = OPENAI_API_KEY
+openai.api_key = openai_api_key
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
 headers = {
@@ -83,7 +83,7 @@ def send_news(data_info):
             "text": data_info['description']
         },
     ])
-    send_feishu_robot(FEISHU_ROBOT_NEWS, feishu_msg)
+    send_feishu_robot(feishu_robot_news, feishu_msg)
 
 def send_error_msg(text):
     error_file_name = 'last_send_time_error.log'
@@ -97,7 +97,7 @@ def send_error_msg(text):
                 "text": text_msg
             },
         ])
-        send_feishu_robot(FEISHU_ROBOT_ERROR, feishu_msg)
+        send_feishu_robot(feishu_robot_error, feishu_msg)
         write_last_time(error_file_name)
 
 def get_article(href):

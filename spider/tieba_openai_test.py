@@ -8,7 +8,7 @@ import os
 import re
 import gzip
 import openai
-from config import OPENAI_API_KEY, FEISHU_ROBOT_NEWS, FEISHU_ROBOT_ERROR
+from config import openai_api_key, feishu_robot_news, feishu_robot_error
 
 # 获取脚本所在目录的路径
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -16,7 +16,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 # 切换工作目录到脚本所在目录
 os.chdir(script_dir)
 
-openai.api_key = OPENAI_API_KEY
+openai.api_key = openai_api_key
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
 headers = {
@@ -135,6 +135,7 @@ def ask_gpt(text):
     try:
         response = openai.ChatCompletion.create(
             model = "gpt-3.5-turbo-0301",  # 对话模型的名称
+            # model = "gpt-4-0314",  # 对话模型的名称
             messages = message,
             temperature = 0.9,  # 值在[0,1]之间，越大表示回复越具有不确定性
             # max_tokens=4097,  # 回复最大的字符数
