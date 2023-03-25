@@ -81,58 +81,56 @@ def send_message(text):
     # send_wx_robot(wx_robot_study, wx_msg)
 
 def random_project():
-    with open("study_category.json", "r", encoding="utf-8") as f:
+    with open("study_category_expand.json", "r", encoding="utf-8") as f:
         categories = json.load(f)
 
-    category_list = ["通识教育"]
-    chosen_categories = random.sample(category_list, 1)
+    total_subcategories = len(categories)
+    subcategories_index_max = 0
+    for subcategories_key in categories.keys():
+        subcategories = categories[subcategories_key]['data']
+        # categories[subcategories_key]['index'] = 0
+        subcategories_index = categories[subcategories_key]['index']
+        if subcategories_index > subcategories_index_max:
+            subcategories_index_max = subcategories_index
 
     projects = []
-
-    # 从study_config.json中读取index的初始值
-    if os.path.exists("study_config.json"):
-        with open("study_config.json", "r", encoding="utf-8") as f:
-            config = json.load(f)
-            index = config.get("project_index", 0)
-    else:
-        index = 0
-
-    total_projects = 0
-    for category_key in chosen_categories:
-        category = categories[category_key]
-        for subcategories_key in category.keys():
-            subcategories = category[subcategories_key]
-            total_projects += len(subcategories)
-
-    # project_key
     # 从可用项目中随机选出一个未被忽略的项目
-    for _ in range(total_projects * 2):
-        # project_index, category
-        for category_key in chosen_categories:
-            category = categories[category_key]
-            subcategories_key = random.choice(list(category.keys()))
-            subcategories = category[subcategories_key]
-            project_key = random.choice(list(subcategories.keys()))
-            project_index = subcategories[project_key]
-        if project_index <= 0 or abs(project_index - index) >= total_projects * 0.6:
-            # 为项目分配一个index
-            subcategories[project_key] = index
-            projects.append({
-                'index': index,
-                'project': project_key,
-                'subcategories': subcategories_key,
-                'category': category_key
-            })
-            index += 1
+    for _ in range(total_subcategories * 2):
+        subcategories_key = random.choice(list(categories.keys()))
+        subcategories_index = categories[subcategories_key]['index']
+        if subcategories_index <= 0 or abs(subcategories_index_max - subcategories_index) >= total_subcategories * 0.6:
+            # 为子类别分配一个index
+            categories[subcategories_key]['index'] = subcategories_index_max + 1
+            subcategories = categories[subcategories_key]['data']
+            project_index_max = 0
+            total_projects = 0
+            for sub2categories_key in subcategories:
+                sub2categories = subcategories[sub2categories_key]
+                total_projects += len(sub2categories)
+                for project_key in sub2categories:
+                    # sub2categories[project_key] = 0
+                    project_index = sub2categories[project_key]
+                    if project_index > project_index_max:
+                        project_index_max = project_index
+            for _ in range(total_projects * 2):
+                sub2categories_key = random.choice(list(subcategories.keys()))
+                sub2categories = subcategories[sub2categories_key]
+                project_key = random.choice(list(sub2categories.keys()))
+                project_index = sub2categories[project_key]
+                if project_index <= 0 or abs(project_index_max - project_index) >= total_projects * 0.6:
+                    # 为项目分配一个index
+                    sub2categories[project_key] = project_index_max + 1
+                    projects.append({
+                        'subcategorie': subcategories_key,
+                        'sub2categorie': sub2categories_key,
+                        'project': project_key,
+                    })
+                    break
+        if projects:
             break
 
-
-    # 将更新后的index值写回study_config.json
-    with open("study_config.json", "w", encoding="utf-8") as f:
-        json.dump({"project_index": index}, f)
-
     # 将更新后的category.json写回文件
-    with open("study_category.json", "w", encoding="utf-8") as f:
+    with open("study_category_expand.json", "w", encoding="utf-8") as f:
         json.dump(categories, f, ensure_ascii=False, indent=4)
 
     return projects
@@ -142,7 +140,7 @@ def random_project():
 def ask_gpt(project):
     # 设置要发送到API的提示语
     message = [
-        {'role': 'system', 'content': f'你现在是{project["subcategories"]}领域的专家,你的服务对象为30来岁有三五年工作经验的游戏策划,请在考虑他知识阅历经验的基础上提供服务,请避免太过浅显和太过常见的知识,最好是对他日后工作生活有所帮助的知识'},
+        {'role': 'system', 'content': f'你现在是{project["subcategorie"]}领域的专家,你的服务对象为30来岁有三五年工作经验的游戏策划,请在考虑他知识阅历经验的基础上提供服务,请避免太过浅显和太过常见的知识,最好是对他日后工作生活有所帮助的知识'},
         {'role': 'user', 'content': f'我希望了解一个{project["project"]}方面的知识点,你为我提供一段5分钟左右的学习内容,介绍这个知识点并进行一些举例,讲解他的应用场景和优缺点,并为我提供一条扩展学习的文章(不需要链接)'},
     ]
     print(message)
@@ -166,8 +164,8 @@ def ask_gpt(project):
         send_error_msg(f'openai api error:{e}')
 
 if __name__ == '__main__':
-    for _ in range(2):
+    for _ in range(100):
         for project in random_project():
             print(project)
-            if answer := ask_gpt(project):
-                send_message(answer)
+            # if answer := ask_gpt(project):
+            #     send_message(answer)
