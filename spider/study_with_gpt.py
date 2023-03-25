@@ -69,7 +69,7 @@ def send_message(text):
     title = '🌻小葵花妈妈课堂开课啦：'
     text = re.sub('\n+', '\n', text or '')
     feishu_msg = {"content": []}
-    feishu_msg["title"] = title
+    # feishu_msg["title"] = title
     feishu_msg["content"].append([
         {
             "tag": "text",
@@ -77,7 +77,8 @@ def send_message(text):
         },
     ])
     send_feishu_robot(feishu_robot_study, feishu_msg)
-    wx_msg = f'{title}\n{text}'
+    # wx_msg = f'{title}\n{text}'
+    # wx_msg = f'{text}'
     # send_wx_robot(wx_robot_study, wx_msg)
 
 def random_project():
