@@ -7,6 +7,7 @@ import datetime
 import requests
 import os
 import re
+import csv
 import gzip
 import openai
 from config import openai_api_key, feishu_robot_study, feishu_robot_error, wx_robot_error, wx_robot_study
@@ -164,6 +165,22 @@ def ask_gpt(project):
         print(e)
         send_error_msg(f'openai api error:{e}')
 
+def save_to_csv(project):
+    filename = 'study_answer_save.csv'
+
+    # 如果文件不存在，则创建一个新的空文件
+    if not os.path.exists(filename):
+        with open(filename, 'w+', newline='', encoding='utf-8') as f:
+            pass
+
+    # 打开CSV文件，使用追加模式
+    with open(filename, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=['time', 'subcategorie', 'sub2categorie', 'project', 'answer'])
+        # 如果文件是空的，则先写入表头
+        if os.path.getsize(filename) == 0:
+            writer.writeheader()
+        writer.writerow(project)  # 追加数据
+
 if __name__ == '__main__':
     for _ in range(2):
         for project in random_project():
@@ -172,4 +189,7 @@ if __name__ == '__main__':
                 answer = ask_gpt(project)
                 if answer:
                     send_message(answer)
+                    project['answer'] = answer
+                    project['time'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    save_to_csv(project)
                     break
