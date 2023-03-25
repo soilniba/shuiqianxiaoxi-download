@@ -141,7 +141,7 @@ def ask_gpt(project):
     # 设置要发送到API的提示语
     message = [
         {'role': 'system', 'content': f'你现在是{project["subcategorie"]}领域的专家,你的服务对象为30来岁有三五年工作经验的游戏策划,请在考虑他知识阅历经验的基础上提供服务,请避免太过浅显和太过常见的知识,最好是对他日后工作生活有所帮助的知识'},
-        {'role': 'user', 'content': f'我希望了解一个{project["project"]}方面的知识点,你为我提供一段5分钟左右的学习内容,介绍这个知识点并进行一些举例,讲解他的应用场景和优缺点,并为我提供一条扩展学习的文章(不需要链接)'},
+        {'role': 'user', 'content': f'我希望了解一个{project["sub2categorie"]}中{project["project"]}方面的知识点,请你为我提供一段5分钟左右的学习内容,以这个知识点的中英文名称作为开头,介绍这个知识点并进行一些举例,讲解他的应用场景和优缺点,并为我提供一条扩展学习的文章(不需要链接)'},
     ]
     print(message)
     try:
@@ -164,8 +164,8 @@ def ask_gpt(project):
         send_error_msg(f'openai api error:{e}')
 
 if __name__ == '__main__':
-    for _ in range(100):
+    for _ in range(2):
         for project in random_project():
             print(project)
-            # if answer := ask_gpt(project):
-            #     send_message(answer)
+            if answer := ask_gpt(project):
+                send_message(answer)
