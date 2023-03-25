@@ -168,5 +168,8 @@ if __name__ == '__main__':
     for _ in range(2):
         for project in random_project():
             print(project)
-            if answer := ask_gpt(project):
-                send_message(answer)
+            for i in range(10):
+                answer = ask_gpt(project)
+                if answer:
+                    send_message(answer)
+                    break
