@@ -10,7 +10,10 @@ import re
 import csv
 import gzip
 import openai
-from config import openai_api_key, feishu_robot_study, feishu_robot_error, wx_robot_error, wx_robot_study
+from io import BytesIO
+from PIL import Image
+from requests_toolbelt import MultipartEncoder
+from config import openai_api_key, feishu_robot_study, feishu_robot_error, wx_robot_error, wx_robot_study, feishu_app_id, feishu_app_secret, azure_api_key
 openai.api_key = openai_api_key
 import psutil
 p = psutil.Process()                                        # 获取当前进程的Process对象
@@ -29,6 +32,54 @@ headers = {
     'Cookie': Cookie,
     'Accept-Encoding': 'gzip',
 }
+
+def SearchBingImage(query, number):
+    headers = {"Ocp-Apim-Subscription-Key": azure_api_key}
+    url = f"https://api.bing.microsoft.com/v7.0/images/search?q={query}&count={number}"
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    if "value" in data:
+        image_urls = [item["contentUrl"] for item in data["value"]]
+        image_key_list = []
+        for url in image_urls:
+            response = requests.get(url)
+            img = Image.open(BytesIO(response.content))
+            img = img.convert("RGB")  # 转换为RGB模式
+            buffered = BytesIO()
+            img.save(buffered, format="JPEG")
+            image_bytes = buffered.getvalue()
+            image_key = UpdateFeishuImage(image_bytes)
+            if image_key:
+                image_key_list.append(image_key)
+        return image_key_list, image_urls
+
+def GetFeishuToken():
+    data = json.dumps({
+        "app_id": feishu_app_id,
+        "app_secret": feishu_app_secret,
+    })
+    response = requests.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', headers=headers, data=data)
+    responsejson = json.loads(response.text)
+    print(responsejson['tenant_access_token'])
+    return responsejson['tenant_access_token']
+
+def UpdateFeishuImage(file):
+    url = "https://open.feishu.cn/open-apis/im/v1/images"
+    form = {'image_type': 'message',
+            'image': (file)} 
+    multi_form = MultipartEncoder(form)
+    headers = {
+        'Authorization': 'Bearer ' + GetFeishuToken(),  ## 获取tenant_access_token, 需要替换为实际的token
+    }
+    headers['Content-Type'] = multi_form.content_type
+    response = requests.request("POST", url, headers=headers, data=multi_form)
+    print(response.headers['X-Tt-Logid'])  # for debug or oncall
+    print(response.content)  # Print Response
+    responsejson = json.loads(response.text)
+    if responsejson['code'] == 0:
+        return responsejson['data']['image_key']
+    else:
+        send_error_msg('上传图片失败', response.text)
 
 def send_feishu_robot(feishu_robot_key, feishu_msg):
     headers = {
@@ -66,7 +117,7 @@ def send_error_msg(text):
     ])
     send_feishu_robot(feishu_robot_error, feishu_msg)
 
-def send_message(text):
+def send_message(text, image_key_list):
     title = '🌻小葵花妈妈课堂开课啦：'
     text = re.sub('\n+', '\n', text or '')
     feishu_msg = {"content": []}
@@ -77,6 +128,14 @@ def send_message(text):
             "text": text
         },
     ])
+    if image_key_list:
+        images = []
+        for image_key in image_key_list:
+            images.append({
+                    "tag": "img",
+                    "image_key": image_key,
+                })
+        feishu_msg["content"].append(images)
     send_feishu_robot(feishu_robot_study, feishu_msg)
     # wx_msg = f'{title}\n{text}'
     # wx_msg = f'{text}'
@@ -175,7 +234,7 @@ def save_to_csv(project):
 
     # 打开CSV文件，使用追加模式
     with open(filename, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['time', 'subcategorie', 'sub2categorie', 'project', 'answer'])
+        writer = csv.DictWriter(f, fieldnames=['time', 'subcategorie', 'sub2categorie', 'project', 'answer', 'images'])
         # 如果文件是空的，则先写入表头
         if os.path.getsize(filename) == 0:
             writer.writeheader()
@@ -188,8 +247,11 @@ if __name__ == '__main__':
             for i in range(10):
                 answer = ask_gpt(project)
                 if answer:
-                    send_message(answer)
+                    answer_key = answer.split('\n')[0]
+                    image_key_list, image_urls = SearchBingImage(answer_key, 2)
+                    send_message(answer, image_key_list)
                     project['answer'] = answer
+                    project['images'] = image_urls
                     project['time'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     save_to_csv(project)
                     break
