@@ -9,6 +9,12 @@ import re
 import gzip
 import openai
 from config import openai_api_key, feishu_robot_news, feishu_robot_error
+openai.api_key = openai_api_key
+import psutil
+p = psutil.Process()  # 获取当前进程的Process对象
+p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
+
+# feishu_robot_news = feishu_robot_error  # 强制使用测试频道
 
 # 获取脚本所在目录的路径
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -16,7 +22,6 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 # 切换工作目录到脚本所在目录
 os.chdir(script_dir)
 
-openai.api_key = openai_api_key
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
 headers = {
@@ -53,15 +58,25 @@ def get_news():
         send_error_msg('出错啦！抓不到新闻啦！')
     print(f'新闻新增{add_num}条')
     write_json(file_name, json_all)
-    if new_news_list:
-        for data_info in new_news_list:
-            href = data_info["href"]
-            text = get_article(href)
-            answer = ask_gpt(text)
-            data_info['description'] = answer
-            json_all[href] = data_info
-            write_json(file_name, json_all)
-            send_news(data_info)
+    for href, data_info in reversed(json_all.items()):
+        if not data_info.get('send_time'):
+            if not data_info.get('description'):
+                try:
+                    href = data_info["href"]
+                    text = get_article(href)
+                    answer = ask_gpt(text)
+                    data_info['description'] = answer
+                    json_all[href] = data_info
+                    write_json(file_name, json_all)
+                except Exception as e:
+                    print(e)
+                    send_error_msg(f'出错啦！{e}')
+                    continue
+            if data_info.get('description'):
+                # data_info['send_time'] = None
+                data_info['send_time'] = time.time()
+                write_json(file_name, json_all)
+                send_news(data_info)
 
 def send_news(data_info):
     feishu_msg = {"content": []}
@@ -77,12 +92,13 @@ def send_news(data_info):
             "href": f'http://www.gov.cn{data_info["href"]}'
         }
     ])
-    feishu_msg["content"].append([
-        {
-            "tag": "text",
-            "text": data_info['description']
-        },
-    ])
+    if data_info.get('description'):
+        feishu_msg["content"].append([
+            {
+                "tag": "text",
+                "text": data_info.get('description')
+            },
+        ])
     send_feishu_robot(feishu_robot_news, feishu_msg)
 
 def send_error_msg(text):
@@ -121,18 +137,19 @@ def get_article(href):
 
 def ask_gpt(text):
     print(len(text))
-    if len(text) > 4000:
-        text = text[:4000]
+    max_len = 3000
+    if len(text) > max_len:
+        text = text[:max_len]
     # 设置要发送到API的提示语
     prompt = f"请对以下新闻文章进行概述：\n{text}"
-    message = []
-    message.append({'role': 'system', 'content': '请对以下新闻文章进行概述'})
-    message.append({'role': 'user', 'content': text})
-    
-
+    message = [
+        {'role': 'system', 'content': '请用中文对以下新闻文章进行概述'},
+        {'role': 'user', 'content': text},
+    ]
     try:
         response = openai.ChatCompletion.create(
             model = "gpt-3.5-turbo-0301",  # 对话模型的名称
+            # model = "gpt-4-0314",  # 对话模型的名称
             messages = message,
             temperature = 0.9,  # 值在[0,1]之间，越大表示回复越具有不确定性
             #max_tokens=4096,  # 回复最大的字符数
@@ -140,7 +157,9 @@ def ask_gpt(text):
             frequency_penalty = 0.0,  # [-2,2]之间，该值越大则更倾向于产生不同的内容
             presence_penalty = 0.0,  # [-2,2]之间，该值越大则更倾向于产生不同的内容
         )
-        print("[ChatGPT] reply={}, total_tokens={}".format(response.choices[0]['message']['content'], response["usage"]["total_tokens"]))
+        print(
+            f"""[ChatGPT] reply={response.choices[0]['message']['content']}, total_tokens={response["usage"]["total_tokens"]}"""
+        )
         return response.choices[0]['message']['content']
     except Exception as e:
         print(e)
@@ -189,7 +208,7 @@ def get_list():  # 获取单页JSON数据
     HtmlContent = HtmlContent.replace("<!--", "")
     HtmlContent = HtmlContent.replace("-->", "")
     soup = BeautifulSoup(HtmlContent, "lxml")
-    thread_list = soup.select_one('body > div.main > div > div > div.news_box > div')
+    thread_list = soup.select_one('body > div.container > div > div.list_info > ul')
     # print(thread_list)
     return thread_list
 
@@ -216,6 +235,9 @@ def get_page(thread_list, json_all, new_news_list):
             new_news_list.insert(0, data_info)
             global add_num
             add_num += 1
+        # if data_info['href'] == '/zhengce/zhengceku/2023-03/15/content_5746847.htm':
+        #     new_news_list.append(data_info)
+
 
 def write_json(file_name, json_all):
     str_json = json.dumps(json_all, indent=2, ensure_ascii=False)
@@ -261,6 +283,7 @@ def send_feishu_robot(feishu_robot_key, feishu_msg):
         }
     })
     response = requests.post(f'https://open.feishu.cn/open-apis/bot/v2/hook/{feishu_robot_key}', headers=headers, data=data)
+    return json.loads(response.text)
 
 def get_feishu_token():
     headers = {
