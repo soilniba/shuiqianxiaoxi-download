@@ -7,14 +7,30 @@ import requests
 import os
 import re
 import gzip
+import PyPDF2
+import docx2txt
+import nltk
+import html2text
 import openai
+from langchain import OpenAI
+from langchain.chat_models import ChatOpenAI
+from llama_index import (
+    GPTKeywordTableIndex,
+    GPTSimpleVectorIndex,
+    SimpleDirectoryReader,
+    BeautifulSoupWebReader,
+    LLMPredictor,
+    PromptHelper,
+    ServiceContext
+)
 from config import openai_api_key, feishu_robot_news, feishu_robot_error
 openai.api_key = openai_api_key
+os.environ["OPENAI_API_KEY"] = openai_api_key
 import psutil
 p = psutil.Process()  # 获取当前进程的Process对象
 p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
 
-# feishu_robot_news = feishu_robot_error  # 强制使用测试频道
+feishu_robot_news = feishu_robot_error  # 强制使用测试频道
 
 # 获取脚本所在目录的路径
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -63,8 +79,9 @@ def get_news():
             if not data_info.get('description'):
                 try:
                     href = data_info["href"]
-                    text = get_article(href)
-                    answer = ask_gpt(text)
+                    # text = get_article(href)
+                    # answer = ask_gpt(text)
+                    answer = ask_llama_index(href)
                     data_info['description'] = answer
                     json_all[href] = data_info
                     write_json(file_name, json_all)
@@ -135,6 +152,38 @@ def get_article(href):
     # print(url, text)
     return text
 
+def ask_llama_index(href):
+    # define LLM
+    # llm_predictor = LLMPredictor(llm=OpenAI(temperature=0, model_name="text-davinci-003", max_tokens=2048))
+    llm_predictor = LLMPredictor(llm=ChatOpenAI(temperature=0))
+
+    # define prompt helper
+    # set maximum input size
+    max_input_size = 4096
+    # set number of output tokens
+    num_output = 256
+    # set maximum chunk overlap
+    max_chunk_overlap = 20
+    prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
+    service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
+
+    # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
+    # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
+    documents = BeautifulSoupWebReader().load_data([f'http://www.gov.cn{href}'])
+    # index = GPTSimpleVectorIndex.from_documents(documents)
+    index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
+    # index = GPTSimpleVectorIndex.from_documents(documents)
+    # save_json_path = os.path.dirname(__file__) + '\\index.json'
+    # index.save_to_disk(save_json_path);
+
+    # query_index.py   从index文件里获得相关资料并向GPT提问
+    # index = GPTKeywordTableIndex.load_from_disk(save_json_path, service_context=service_context)
+    # while True:
+    #     ask = input("请输入你的问题：")
+    #     print(index.query(ask))
+    answer = index.query("请用中文尽可能详细的总结文章概要")
+    return answer
+
 def ask_gpt(text):
     print(len(text))
     max_len = 3000
@@ -148,8 +197,8 @@ def ask_gpt(text):
     ]
     try:
         response = openai.ChatCompletion.create(
-            model = "gpt-3.5-turbo-0301",  # 对话模型的名称
-            # model = "gpt-4-0314",  # 对话模型的名称
+            model = "gpt-3.5-turbo",  # 对话模型的名称
+            # model = "gpt-4",  # 对话模型的名称
             messages = message,
             temperature = 0.9,  # 值在[0,1]之间，越大表示回复越具有不确定性
             #max_tokens=4096,  # 回复最大的字符数
@@ -164,29 +213,7 @@ def ask_gpt(text):
     except Exception as e:
         print(e)
         send_error_msg(f'openai api error:{e}')
-    # except openai.error.RateLimitError as e:
-    #     # rate limit exception
-    #     print(e)
-    #     if retry_count < 1:
-    #         time.sleep(5)
-    #         logger.warn("[OPEN_AI] RateLimit exceed, 第{}次重试".format(retry_count+1))
-    #         return self.reply_text(session, session_id, retry_count+1)
-    #     else:
-    #         return {"completion_tokens": 0, "content": "提问太快啦，请休息一下再问我吧"}
-    # except openai.error.APIConnectionError as e:
-    #     # api connection exception
-    #     logger.warn(e)
-    #     logger.warn("[OPEN_AI] APIConnection failed")
-    #     return {"completion_tokens": 0, "content":"我连接不到你的网络"}
-    # except openai.error.Timeout as e:
-    #     logger.warn(e)
-    #     logger.warn("[OPEN_AI] Timeout")
-    #     return {"completion_tokens": 0, "content":"我没有收到你的消息"}
-    # except Exception as e:
-    #     # unknown exception
-    #     logger.exception(e)
-    #     Session.clear_session(session_id)
-    #     return {"completion_tokens": 0, "content": "请再问我一次吧"}
+
 
 def get_html(url):
         url = urllib.parse.quote(url, safe='/:?=&')
