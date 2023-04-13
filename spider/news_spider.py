@@ -12,6 +12,7 @@ import docx2txt
 import nltk
 import html2text
 import openai
+from loguru import logger
 from langchain import OpenAI
 from langchain.chat_models import ChatOpenAI
 from llama_index import (
@@ -26,13 +27,17 @@ from llama_index import (
     ServiceContext
 )
 from config import openai_api_key, feishu_robot_news, feishu_robot_error
+
+filename_ext = os.path.basename(__file__)
+file_name, file_ext = os.path.splitext(filename_ext)
+logger.add(f"{file_name}.log", format="{time} - {level} - {message}", rotation="10 MB", compression="zip")    # 添加日志文件
 openai.api_key = openai_api_key
 os.environ["OPENAI_API_KEY"] = openai_api_key
 import psutil
 p = psutil.Process()  # 获取当前进程的Process对象
 p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
 
-feishu_robot_news = feishu_robot_error  # 强制使用测试频道
+# feishu_robot_news = feishu_robot_error  # 强制使用测试频道
 
 # 获取脚本所在目录的路径
 script_dir = os.path.dirname(os.path.realpath(__file__))
