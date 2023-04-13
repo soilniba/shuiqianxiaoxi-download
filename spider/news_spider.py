@@ -21,6 +21,8 @@ from llama_index import (
     BeautifulSoupWebReader,
     LLMPredictor,
     PromptHelper,
+    QuestionAnswerPrompt,
+    RefinePrompt,
     ServiceContext
 )
 from config import openai_api_key, feishu_robot_news, feishu_robot_error
@@ -178,10 +180,43 @@ def ask_llama_index(href):
 
     # query_index.py   从index文件里获得相关资料并向GPT提问
     # index = GPTKeywordTableIndex.load_from_disk(save_json_path, service_context=service_context)
+    # Context information is below. 
+    # ---------------------
+    # {context_str}
+    # ---------------------
+    # Given the context information and not prior knowledge, answer the question: {query_str}
+    text_qa_prompt_tmpl = (
+        "我们在下面提供了上下文信息. \n"
+        "---------------------\n"
+        "{context_str}"
+        "\n---------------------\n"
+        "鉴于此信息，请回答以下问题: {query_str}\n"
+    )
+    # The original question is as follows: {query_str}
+    # We have provided an existing answer: {existing_answer}
+    # We have the opportunity to refine the existing answer (only if needed) with some more context below.
+    # ------------
+    # {context_msg}
+    # ------------
+    # Given the new context, refine the original answer to better answer the question. If the context isn't useful, return the original answer.
+    refine_prompt_tmpl = (
+        "之前我们询问过这个问题: {query_str}\n"
+        "得到了这样一个答案: {existing_answer}\n"
+        "现在我们有机会完善现有的答案 (仅在需要时) 通过下面的更多上下文.\n"
+        "------------\n"
+        "{context_msg}\n"
+        "------------\n"
+        "给我一个新的答案, 完善原始答案以更好的回答问题. 如果新的上下文没有用, 则返回原始的答案.\n"
+    )
+    text_qa_prompt = QuestionAnswerPrompt(text_qa_prompt_tmpl)
+    refine_prompt = RefinePrompt(refine_prompt_tmpl)
+
     # while True:
     #     ask = input("请输入你的问题：")
     #     print(index.query(ask))
-    answer = index.query("请用中文尽可能详细的总结文章概要")
+    answer = index.query("用中文总结一下这篇文章主要讲了啥", 
+                         text_qa_template = text_qa_prompt,
+                         refine_template = refine_prompt)
     return answer.response
 
 def ask_gpt(text):
