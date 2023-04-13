@@ -182,7 +182,7 @@ def ask_llama_index(href):
     #     ask = input("请输入你的问题：")
     #     print(index.query(ask))
     answer = index.query("请用中文尽可能详细的总结文章概要")
-    return answer
+    return answer.response
 
 def ask_gpt(text):
     print(len(text))
