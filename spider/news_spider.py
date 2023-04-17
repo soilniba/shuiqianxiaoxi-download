@@ -28,6 +28,8 @@ from llama_index import (
 )
 from config import openai_api_key, feishu_robot_news, feishu_robot_error
 
+script_dir = os.path.dirname(os.path.realpath(__file__))    # 获取脚本所在目录的路径
+os.chdir(script_dir)                                        # 切换工作目录到脚本所在目录
 filename_ext = os.path.basename(__file__)
 file_name, file_ext = os.path.splitext(filename_ext)
 logger.add(f"{file_name}.log", format="{time} - {level} - {message}", rotation="10 MB", compression="zip")    # 添加日志文件
@@ -36,14 +38,8 @@ os.environ["OPENAI_API_KEY"] = openai_api_key
 import psutil
 p = psutil.Process()  # 获取当前进程的Process对象
 p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
-
 # feishu_robot_news = feishu_robot_error  # 强制使用测试频道
 
-# 获取脚本所在目录的路径
-script_dir = os.path.dirname(os.path.realpath(__file__))
-
-# 切换工作目录到脚本所在目录
-os.chdir(script_dir)
 
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
