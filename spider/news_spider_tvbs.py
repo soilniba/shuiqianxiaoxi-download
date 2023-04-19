@@ -26,7 +26,7 @@ from llama_index import (
     RefinePrompt,
     ServiceContext
 )
-from config import openai_api_key, feishu_robot_news, feishu_robot_error
+from config import openai_api_key, feishu_robot_tvbs, feishu_robot_error
 
 script_dir = os.path.dirname(os.path.realpath(__file__))    # 获取脚本所在目录的路径
 os.chdir(script_dir)                                        # 切换工作目录到脚本所在目录
@@ -38,7 +38,7 @@ os.environ["OPENAI_API_KEY"] = openai_api_key
 import psutil
 p = psutil.Process()  # 获取当前进程的Process对象
 p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
-# feishu_robot_news = feishu_robot_error  # 强制使用测试频道
+# feishu_robot_tvbs = feishu_robot_error  # 强制使用测试频道
 
 
 Cookie = ''
@@ -65,12 +65,13 @@ def get_news():
     global update_num, add_num
     update_num = 0
     add_num = 0
-    file_name = 'news_gov.json'
+    file_name = 'news_tbvs.json'
     json_all = load_json(file_name)
     # clear_history_data(json_all)
     new_news_list = []
-    if thread_list := get_list():
-        get_page(thread_list, json_all, new_news_list)
+    if thread_list_all := get_list_all():
+        for thread_list in thread_list_all:
+            get_page(thread_list['thread_list'], thread_list['category'], json_all, new_news_list)
         print("----新闻读取完毕----")
     else:
         print("thread_list读取失败")
@@ -104,13 +105,17 @@ def send_news(data_info):
     feishu_msg["content"].append([
         {
             "tag": "text",
-            "text": data_info['date']
+            "text": f"[{data_info['category']}]"
         },
         {
             "tag": "a",
             "text": data_info['title'],
-            "href": f'http://www.gov.cn{data_info["href"]}'
-        }
+            "href": f'https://news.tvbs.com.tw{data_info["href"]}'
+        },
+        {
+            "tag": "text",
+            "text": f"{data_info['date']}"
+        },
     ])
     if data_info.get('description'):
         feishu_msg["content"].append([
@@ -119,7 +124,7 @@ def send_news(data_info):
                 "text": data_info.get('description')
             },
         ])
-    send_feishu_robot(feishu_robot_news, feishu_msg)
+    send_feishu_robot(feishu_robot_tvbs, feishu_msg)
 
 def send_error_msg(text):
     if feishu_robot_error:
@@ -135,10 +140,7 @@ def send_error_msg(text):
     logger.error(text)
 
 def get_article(href):
-    url = f'http://www.gov.cn{href}'
-    # url = 'http://www.gov.cn/xinwen/2023-03/17/content_5747299.htm'
-    # url = 'http://www.gov.cn/zhengce/zhengceku/2023-03/17/content_5747143.htm'
-    # url = 'http://www.gov.cn/zhengce/zhengceku/2023-03/16/content_5746998.htm'
+    url = f'https://news.tvbs.com.tw{href}'
     response = requests.get(url)
     html = response.content
     # 解析网页内容
@@ -170,7 +172,7 @@ def ask_llama_index(href):
 
     # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
     # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
-    documents = BeautifulSoupWebReader().load_data([f'http://www.gov.cn{href}'])
+    documents = BeautifulSoupWebReader().load_data([f'https://news.tvbs.com.tw{href}'])
     # index = GPTSimpleVectorIndex.from_documents(documents)
     index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
     # index = GPTSimpleVectorIndex.from_documents(documents)
@@ -263,41 +265,62 @@ def get_html(url):
         # print('python 返回 URL:{} 数据成功'.format(url))
         return HtmlContent
 
-def get_list():  # 获取单页JSON数据
-    url = "http://www.gov.cn/xinwen/lianbo/bumen.htm"
+def get_list_all():
+    thread_list_all = [
+        {
+            'thread_list': get_list('https://news.tvbs.com.tw/realtime/china'),
+            'category': '大陆',
+        },
+        {
+            'thread_list': get_list('https://news.tvbs.com.tw/realtime/world'),
+            'category': '全球',
+        },
+        {
+            'thread_list': get_list('https://news.tvbs.com.tw/realtime/tech'),
+            'category': '科技',
+        },
+    ]
+    return thread_list_all
+
+def get_list(url):  # 获取单页JSON数据
     HtmlContent = get_html(url)
     HtmlContent = HtmlContent.replace("<!--", "")
     HtmlContent = HtmlContent.replace("-->", "")
     soup = BeautifulSoup(HtmlContent, "lxml")
-    thread_list = soup.select_one('body > div.container > div > div.list_info > ul')
+    thread_list = soup.select_one('body > div.container > main > div > article > div.news_list > div.list')
     # print(thread_list)
     return thread_list
 
-def get_page(thread_list, json_all, new_news_list):
+def get_page(thread_list, category, json_all, new_news_list):
     li_list = thread_list.select('li')
     for li in li_list:
         a = li.select_one('a')
-        title = a.text
-        href = a.attrs['href']
-        span = li.select_one('span')
-        date = span.text.strip()
-        # print(title, href, date)
-        if href in json_all:
-            data_info = json_all[href]
-            if 'href' not in data_info:
+        if a is not None:
+            title = a.text
+            href = a.attrs['href']
+            date_div = li.select_one('div[class="time"]')
+            date = date_div.text.strip()
+            # print(title, href, date)
+            if href in json_all:
+                data_info = json_all[href]
+                if 'href' not in data_info:
+                    data_info['href'] = href
+            else:
+                data_info = {}
                 data_info['href'] = href
-        else:
-            data_info = {}
-            data_info['href'] = href
-            data_info['title'] = title
-            data_info['date'] = date
-            json_all[href] = data_info
-            # new_news_list.append(data_info)
-            new_news_list.insert(0, data_info)
-            global add_num
-            add_num += 1
-        # if data_info['href'] == '/zhengce/zhengceku/2023-03/15/content_5746847.htm':
-        #     new_news_list.append(data_info)
+                data_info['title'] = title
+                data_info['date'] = date
+                data_info['category'] = category
+                json_all[href] = data_info
+                # new_news_list.append(data_info)
+                new_news_list.insert(0, data_info)
+                global add_num
+                add_num += 1
+                if add_num > 10:
+                    # 只读前十条，太旧的就不看了
+                    break
+            # if data_info['href'] == '/zhengce/zhengceku/2023-03/15/content_5746847.htm':
+            #     new_news_list.append(data_info)
 
 
 def write_json(file_name, json_all):
