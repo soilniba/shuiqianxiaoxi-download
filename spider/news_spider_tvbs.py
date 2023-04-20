@@ -6,6 +6,7 @@ import datetime
 import requests
 import os
 import re
+import opencc
 import gzip
 import PyPDF2
 import docx2txt
@@ -40,7 +41,7 @@ import psutil
 p = psutil.Process()  # 获取当前进程的Process对象
 p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
 # feishu_robot_tvbs = feishu_robot_error  # 强制使用测试频道
-
+converter = opencc.OpenCC('tw2sp.json')  # 创建转换器对象， 繁體（臺灣正體標準）到簡體並轉換爲中國大陸常用詞彙
 
 Cookie = ''
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36'
@@ -110,7 +111,7 @@ def send_news(data_info):
         },
         {
             "tag": "a",
-            "text": data_info['title'],
+            "text": converter.convert(data_info['title']),
             "href": f'https://news.tvbs.com.tw{data_info["href"]}'
         },
         {
