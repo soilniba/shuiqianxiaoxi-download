@@ -20,6 +20,7 @@ from llama_index import (
     GPTSimpleVectorIndex,
     SimpleDirectoryReader,
     BeautifulSoupWebReader,
+    StringIterableReader,
     LLMPredictor,
     PromptHelper,
     QuestionAnswerPrompt,
@@ -139,14 +140,17 @@ def send_error_msg(text):
         send_feishu_robot(feishu_robot_error, feishu_msg)
     logger.error(text)
 
-def get_article(href):
-    url = f'https://news.tvbs.com.tw{href}'
+def get_article(url):
     response = requests.get(url)
     html = response.content
     # 解析网页内容
     soup = BeautifulSoup(html, 'html.parser')
+    div_main = soup.select_one('#news_detail_div')
+    # 去除广告
+    if div_guangxuan := div_main.select_one('div.guangxuan'):
+        div_guangxuan.extract()
     # 提取网页正文
-    text = soup.get_text()
+    text = div_main.get_text()
     # 去除多余空格、换行符等无用字符
     text = re.sub(r'\s+', ' ', text).strip()
     # 将多个连续空格替换为一个空格
@@ -172,7 +176,9 @@ def ask_llama_index(href):
 
     # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
     # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
-    documents = BeautifulSoupWebReader().load_data([f'https://news.tvbs.com.tw{href}'])
+    url = f'https://news.tvbs.com.tw{href}'
+    documents = StringIterableReader().load_data(texts=[get_article(url)])
+    # documents = BeautifulSoupWebReader().load_data([url])
     # index = GPTSimpleVectorIndex.from_documents(documents)
     index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
     # index = GPTSimpleVectorIndex.from_documents(documents)

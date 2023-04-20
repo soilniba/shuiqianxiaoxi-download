@@ -20,6 +20,7 @@ from llama_index import (
     GPTSimpleVectorIndex,
     SimpleDirectoryReader,
     BeautifulSoupWebReader,
+    StringIterableReader,
     LLMPredictor,
     PromptHelper,
     QuestionAnswerPrompt,
@@ -134,8 +135,7 @@ def send_error_msg(text):
         send_feishu_robot(feishu_robot_error, feishu_msg)
     logger.error(text)
 
-def get_article(href):
-    url = f'http://www.gov.cn{href}'
+def get_article(url):
     # url = 'http://www.gov.cn/xinwen/2023-03/17/content_5747299.htm'
     # url = 'http://www.gov.cn/zhengce/zhengceku/2023-03/17/content_5747143.htm'
     # url = 'http://www.gov.cn/zhengce/zhengceku/2023-03/16/content_5746998.htm'
@@ -170,7 +170,9 @@ def ask_llama_index(href):
 
     # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
     # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
-    documents = BeautifulSoupWebReader().load_data([f'http://www.gov.cn{href}'])
+    url = f'http://www.gov.cn{href}'
+    documents = StringIterableReader().load_data(texts=[get_article(url)])
+    # documents = BeautifulSoupWebReader().load_data([url])
     # index = GPTSimpleVectorIndex.from_documents(documents)
     index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
     # index = GPTSimpleVectorIndex.from_documents(documents)
