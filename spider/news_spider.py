@@ -172,7 +172,7 @@ def ask_llama_index(href):
 
     # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
     # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
-    url = f'https://news.tvbs.com.tw{href}'
+    url = f'http://www.gov.cn{href}'
     documents = StringIterableReader().load_data(texts=[get_article(url)])
     for doc in documents:
         doc.text = doc.text.replace("。", ". ")
