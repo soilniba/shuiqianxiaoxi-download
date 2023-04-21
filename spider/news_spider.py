@@ -6,6 +6,7 @@ import datetime
 import requests
 import os
 import re
+import traceback
 import gzip
 import PyPDF2
 import docx2txt
@@ -90,8 +91,8 @@ def get_news():
                     json_all[href] = data_info
                     write_json(file_name, json_all)
                 except Exception as e:
-                    print(e)
-                    send_error_msg(f'出错啦！{e}')
+                    tb_str = traceback.format_exc()
+                    send_error_msg(f'ask_llama_index error\n{tb_str}')
                     continue
             if data_info.get('description'):
                 # data_info['send_time'] = None
