@@ -173,6 +173,7 @@ def ask_llama_index(href):
     num_output = 256
     # set maximum chunk overlap
     max_chunk_overlap = 20
+    chunk_size_limit = 10000
     prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
     service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
@@ -180,6 +181,8 @@ def ask_llama_index(href):
     # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
     url = f'https://news.tvbs.com.tw{href}'
     documents = StringIterableReader().load_data(texts=[get_article(url)])
+    for doc in documents:
+        doc.text = doc.text.replace("。", ". ")
     # documents = BeautifulSoupWebReader().load_data([url])
     # index = GPTSimpleVectorIndex.from_documents(documents)
     index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
@@ -215,7 +218,7 @@ def ask_llama_index(href):
         "------------\n"
         "{context_msg}\n"
         "------------\n"
-        "给我一个新的答案, 完善原始答案以更好的回答问题. 如果新的上下文没有用, 则返回原始的答案.\n"
+        "给我一个新的答案, 完善原始答案以更好的回答问题. 如果新的上下文没有用或者没必要再完善了, 则重复一遍原始的答案.\n"
     )
     text_qa_prompt = QuestionAnswerPrompt(text_qa_prompt_tmpl)
     refine_prompt = RefinePrompt(refine_prompt_tmpl)

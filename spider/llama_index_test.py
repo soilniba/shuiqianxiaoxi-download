@@ -30,6 +30,9 @@ from llama_index import (
 )
 from llama_index.prompts.default_prompts import DEFAULT_TEXT_QA_PROMPT_TMPL, DEFAULT_REFINE_PROMPT_TMPL
 from config import openai_api_key, feishu_robot_news, feishu_robot_error
+
+script_dir = os.path.dirname(os.path.realpath(__file__))    # 获取脚本所在目录的路径
+os.chdir(script_dir)                                        # 切换工作目录到脚本所在目录
 openai.api_key = openai_api_key
 os.environ["OPENAI_API_KEY"] = openai_api_key
 import psutil
@@ -53,31 +56,37 @@ def get_article(href):
     # print(url, text)
     return text
 
-def ask_llama_index(href, json_filename = None):
+def ask_llama_index(href = None, text = None, json_filename = None):
     # define LLM
     # llm_predictor = LLMPredictor(llm=OpenAI(temperature=0, model_name="text-davinci-003", max_tokens=2048))
     llm_predictor = LLMPredictor(llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo", max_tokens=2048))
 
     # define prompt helper
     # set maximum input size
-    max_input_size = 4096
+    max_input_size = 2048
     # set number of output tokens
     num_output = 256
     # set maximum chunk overlap
     max_chunk_overlap = 20
+    chunk_size_limit = 10000
     prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
     service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
-    save_json_path = f'{os.path.dirname(__file__)}\\{json_filename}'
-    if not os.path.isfile(save_json_path):
+    save_json_path = json_filename and f'{os.path.dirname(__file__)}\\{json_filename}'
+    if not save_json_path or not os.path.isfile(save_json_path):
         # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
         # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
-        documents = BeautifulSoupWebReader().load_data([href])
-        # documents = StringIterableReader().load_data(texts=[get_article(url)])
+        if href:
+            documents = BeautifulSoupWebReader().load_data([href])
+        if text:
+            documents = StringIterableReader().load_data(texts=[text])
+        for doc in documents:
+            doc.text = doc.text.replace("。", ". ")
         # index = GPTSimpleVectorIndex.from_documents(documents)
         index = GPTSimpleVectorIndex.from_documents(documents, service_context=service_context)
         # index = GPTSimpleVectorIndex.from_documents(documents)
-        index.save_to_disk(save_json_path)
+        if save_json_path:
+            index.save_to_disk(save_json_path)
     else:
         index = GPTSimpleVectorIndex.load_from_disk(save_json_path, service_context=service_context)
 
@@ -108,16 +117,16 @@ def ask_llama_index(href, json_filename = None):
         "------------\n"
         "{context_msg}\n"
         "------------\n"
-        "给我一个新的答案, 完善原始答案以更好的回答问题. 如果新的上下文没有用, 则返回原始的答案.\n"
+        "给我一个新的答案, 完善原始答案以更好的回答问题. 如果新的上下文没有用或者没必要再完善了, 则重复一遍原始的答案.\n"
     )
     text_qa_prompt = QuestionAnswerPrompt(text_qa_prompt_tmpl)
     refine_prompt = RefinePrompt(refine_prompt_tmpl)
 
 
-    answer = index.query("请尽可能详细的总结文章概要,并使用换行使阅读段落更清晰", 
-                         text_qa_template = text_qa_prompt,
-                         refine_template = refine_prompt)
-    print(answer)
+    # answer = index.query("请尽可能详细的总结文章概要,并使用换行使阅读段落更清晰", 
+    #                      text_qa_template = text_qa_prompt,
+    #                      refine_template = refine_prompt)
+    # print(answer)
     while True:
         ask = input("请输入你的问题：")
         print(index.query(ask, 
@@ -174,9 +183,10 @@ def ask_by_helper_guide():
     # set maximum input size
     max_input_size = 4096
     # set number of output tokens
-    num_output = 2560
+    num_output = 256
     # set maximum chunk overlap
     max_chunk_overlap = 20
+    chunk_size_limit = 10000
     prompt_helper = PromptHelper(max_input_size, num_output, max_chunk_overlap)
     service_context = ServiceContext.from_defaults(llm_predictor=llm_predictor, prompt_helper=prompt_helper)
 
@@ -225,4 +235,9 @@ def ask_by_helper_guide():
 # logging.getLogger('llama_index.token_counter.token_counter').setLevel(logging.WARNING)
 # ask_by_helper_guide()
 
-ask_llama_index('https://mp.weixin.qq.com/s/wY-DkYOaar1Z3Hy4eBPebg', 'wY-DkYOaar1Z3Hy4eBPebg.json')
+# ask_llama_index('https://mp.weixin.qq.com/s/wY-DkYOaar1Z3Hy4eBPebg', None, 'wY-DkYOaar1Z3Hy4eBPebg.json')
+ask_llama_index('https://zhuanlan.zhihu.com/p/623585339')
+
+# 从doc/pormpt_tags.txt文件读入text信息
+# text = open('doc\\pormpt_tags.txt', 'r').read()
+# ask_llama_index(None, text, 'pormpt_tags.json')
