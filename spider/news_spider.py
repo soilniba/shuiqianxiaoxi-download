@@ -222,6 +222,7 @@ def ask_llama_index(href):
     answer = index.query("用中文总结一下这篇文章主要讲了啥", 
                          text_qa_template = text_qa_prompt,
                          refine_template = refine_prompt)
+    time.sleep(10)
     return answer.response
 
 def ask_gpt(text):
