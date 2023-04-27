@@ -91,8 +91,8 @@ def get_news():
                     json_all[href] = data_info
                     write_json(file_name, json_all)
                 except Exception as e:
-                    tb_str = traceback.format_exc()
-                    send_error_msg(f'ask_llama_index error\n{tb_str}')
+                    # tb_str = traceback.format_exc(limit=3)
+                    send_error_msg(f'ask_llama_index error\n{e}')
                     continue
             if data_info.get('description'):
                 # data_info['send_time'] = None
