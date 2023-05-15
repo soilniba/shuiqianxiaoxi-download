@@ -72,13 +72,13 @@ def get_news():
     json_all = load_json(file_name)
     # clear_history_data(json_all)
     new_news_list = []
-    if thread_list_all := get_list_all():
+    try:
+        thread_list_all = get_list_all()
         for thread_list in thread_list_all:
             get_page(thread_list['thread_list'], thread_list['category'], json_all, new_news_list)
         print("----新闻读取完毕----")
-    else:
-        print("thread_list读取失败")
-        send_error_msg('出错啦！抓不到新闻啦！')
+    except Exception as e:
+        send_error_msg(f'出错啦！tbvs抓不到新闻啦！\n{e}')
     print(f'新闻新增{add_num}条')
     write_json(file_name, json_all)
     for href, data_info in reversed(json_all.items()):
@@ -89,6 +89,8 @@ def get_news():
                     # text = get_article(href)
                     # answer = ask_gpt(text)
                     answer = ask_llama_index(href)
+                    if answer is None:
+                        answer = 'None'
                     data_info['description'] = answer
                     json_all[href] = data_info
                     write_json(file_name, json_all)
@@ -96,7 +98,7 @@ def get_news():
                     # tb_str = traceback.format_exc(limit=3)
                     send_error_msg(f'ask_llama_index error\n{e}')
                     continue
-            if data_info.get('description'):
+            if data_info.get('description') and data_info.get('description') != 'None':
                 # data_info['send_time'] = None
                 data_info['send_time'] = time.time()
                 write_json(file_name, json_all)

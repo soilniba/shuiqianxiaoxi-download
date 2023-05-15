@@ -71,12 +71,12 @@ def get_news():
     json_all = load_json(file_name)
     # clear_history_data(json_all)
     new_news_list = []
-    if thread_list := get_list():
+    try:
+        thread_list = get_list()
         get_page(thread_list, json_all, new_news_list)
         print("----新闻读取完毕----")
-    else:
-        print("thread_list读取失败")
-        send_error_msg('出错啦！抓不到新闻啦！')
+    except Exception as e:
+        send_error_msg(f'出错啦！gov抓不到新闻啦！\n{e}')
     print(f'新闻新增{add_num}条')
     write_json(file_name, json_all)
     for href, data_info in reversed(json_all.items()):
@@ -271,12 +271,14 @@ def get_html(url):
         return HtmlContent
 
 def get_list():  # 获取单页JSON数据
-    url = "http://www.gov.cn/xinwen/lianbo/bumen.htm"
+    url = "http://www.gov.cn/lianbo/bumen/"
     HtmlContent = get_html(url)
-    HtmlContent = HtmlContent.replace("<!--", "")
-    HtmlContent = HtmlContent.replace("-->", "")
+    # HtmlContent = HtmlContent.replace("<!--", "")
+    # HtmlContent = HtmlContent.replace("-->", "")
+    HtmlContent = HtmlContent.replace("</html>", "")
+    HtmlContent += '</html>'
     soup = BeautifulSoup(HtmlContent, "lxml")
-    thread_list = soup.select_one('body > div.container > div > div.list_info > ul')
+    thread_list = soup.select_one('body > div.main > div > div > div.news_box')
     # print(thread_list)
     return thread_list
 
@@ -286,6 +288,10 @@ def get_page(thread_list, json_all, new_news_list):
         a = li.select_one('a')
         title = a.text
         href = a.attrs['href']
+        if href.startswith('./'):
+            href = "/lianbo/bumen" + href[1:]
+        elif href.startswith('https://www.gov.cn/'):
+            href = href.replace('https://www.gov.cn/', '/')
         span = li.select_one('span')
         date = span.text.strip()
         # print(title, href, date)
