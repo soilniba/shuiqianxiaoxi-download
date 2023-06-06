@@ -313,7 +313,7 @@ def get_page(thread_list, category, json_all, new_news_list):
             title = a.text
             href = a.attrs['href']
             date_div = li.select_one('div[class="time"]')
-            date = date_div.text.strip()
+            date = date_div.text.strip() if date_div is not None else ""
             # print(title, href, date)
             if href in json_all:
                 data_info = json_all[href]
