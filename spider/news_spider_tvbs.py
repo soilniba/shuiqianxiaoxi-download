@@ -29,19 +29,21 @@ from llama_index import (
     RefinePrompt,
     ServiceContext
 )
-from config import openai_api_key, feishu_robot_tvbs, feishu_robot_error
+from config import openai_api_key, feishu_robot_tyc, feishu_robot_error, gpt35_model, openai35_api_key, openai_proxy
+feishu_robot_sender = feishu_robot_tyc
 
 script_dir = os.path.dirname(os.path.realpath(__file__))    # 获取脚本所在目录的路径
 os.chdir(script_dir)                                        # 切换工作目录到脚本所在目录
 filename_ext = os.path.basename(__file__)
 file_name, file_ext = os.path.splitext(filename_ext)
 logger.add(f"{file_name}.log", format="{time} - {level} - {message}", rotation="10 MB", compression="zip")    # 添加日志文件
-openai.api_key = openai_api_key
-os.environ["OPENAI_API_KEY"] = openai_api_key
+openai.api_key = openai35_api_key
+openai.api_base = openai_proxy
+os.environ["OPENAI_API_KEY"] = openai35_api_key
+os.environ["OPENAI_API_BASE"] = openai_proxy
 import psutil
 p = psutil.Process()  # 获取当前进程的Process对象
 p.nice(psutil.IDLE_PRIORITY_CLASS)  # 设置进程为低优先级
-# feishu_robot_tvbs = feishu_robot_error  # 强制使用测试频道
 converter = opencc.OpenCC('tw2sp.json')  # 创建转换器对象， 繁體（臺灣正體標準）到簡體並轉換爲中國大陸常用詞彙
 
 Cookie = ''
@@ -68,19 +70,19 @@ def get_news():
     global update_num, add_num
     update_num = 0
     add_num = 0
-    file_name = 'news_tbvs.json'
-    json_all = load_json(file_name)
+    json_file_name = f'{file_name}.json'
+    json_all = load_json(json_file_name)
     # clear_history_data(json_all)
     new_news_list = []
     try:
         thread_list_all = get_list_all()
         for thread_list in thread_list_all:
-            get_page(thread_list['thread_list'], thread_list['category'], json_all, new_news_list)
+            get_json_item(thread_list['thread_list'], thread_list['category'], json_all, new_news_list)
         print("----新闻读取完毕----")
     except Exception as e:
-        send_error_msg(f'出错啦！tbvs抓不到新闻啦！\n{e}')
+        send_error_msg(f'出错啦！{file_name}抓不到新闻啦！\n{e}')
     print(f'新闻新增{add_num}条')
-    write_json(file_name, json_all)
+    write_json(json_file_name, json_all)
     for href, data_info in reversed(json_all.items()):
         if not data_info.get('send_time'):
             if not data_info.get('description'):
@@ -93,15 +95,15 @@ def get_news():
                         answer = 'None'
                     data_info['description'] = answer
                     json_all[href] = data_info
-                    write_json(file_name, json_all)
+                    write_json(json_file_name, json_all)
                 except Exception as e:
                     # tb_str = traceback.format_exc(limit=3)
-                    send_error_msg(f'ask_llama_index error\n{e}')
+                    # send_error_msg(f'ask_llama_index error\n{e}')
                     continue
             if data_info.get('description') and data_info.get('description') != 'None':
                 # data_info['send_time'] = None
                 data_info['send_time'] = time.time()
-                write_json(file_name, json_all)
+                write_json(json_file_name, json_all)
                 send_news(data_info)
 
 def send_news(data_info):
@@ -115,7 +117,7 @@ def send_news(data_info):
         {
             "tag": "a",
             "text": converter.convert(data_info['title']),
-            "href": f'https://news.tvbs.com.tw{data_info["href"]}'
+            "href": data_info["href"]
         },
         {
             "tag": "text",
@@ -126,10 +128,10 @@ def send_news(data_info):
         feishu_msg["content"].append([
             {
                 "tag": "text",
-                "text": data_info.get('description')
+                "text": converter.convert(data_info.get('description')),
             },
         ])
-    send_feishu_robot(feishu_robot_tvbs, feishu_msg)
+    send_feishu_robot(feishu_robot_sender, feishu_msg)
 
 def send_error_msg(text):
     if feishu_robot_error:
@@ -149,7 +151,7 @@ def get_article(url):
     html = response.content
     # 解析网页内容
     soup = BeautifulSoup(html, 'html.parser')
-    div_main = soup.select_one('#news_detail_div')
+    div_main = soup.select_one('div.centralContent')
     # 去除广告
     if div_guangxuan := div_main.select_one('div.guangxuan'):
         div_guangxuan.extract()
@@ -181,7 +183,7 @@ def ask_llama_index(href):
 
     # doc是你文档所存放的位置，recursive代表递归获取里面所有文档
     # documents = SimpleDirectoryReader(input_dir=os.path.dirname(__file__) + '/doc',recursive=True).load_data()
-    url = f'https://news.tvbs.com.tw{href}'
+    url = href
     documents = StringIterableReader().load_data(texts=[get_article(url)])
     for doc in documents:
         doc.text = doc.text.replace("。", ". ")
@@ -236,7 +238,7 @@ def ask_llama_index(href):
 
 def ask_gpt(text):
     print(len(text))
-    max_len = 3000
+    max_len = 6000
     if len(text) > max_len:
         text = text[:max_len]
     # 设置要发送到API的提示语
@@ -247,7 +249,7 @@ def ask_gpt(text):
     ]
     try:
         response = openai.ChatCompletion.create(
-            model = "gpt-3.5-turbo",  # 对话模型的名称
+            model = gpt35_model,  # 对话模型的名称
             # model = "gpt-4",  # 对话模型的名称
             messages = message,
             temperature = 0.9,  # 值在[0,1]之间，越大表示回复越具有不确定性
@@ -282,17 +284,17 @@ def get_html(url):
 def get_list_all():
     thread_list_all = [
         {
-            'thread_list': get_list('https://news.tvbs.com.tw/realtime/china'),
-            'category': '大陆',
+            'thread_list': get_json('https://capi.tianyancha.com/cloud-yq-news/company/detail/publicmsg/news/webSimple?_=1695282344630&id=21494131&ps=10&pn=1&emotion=-100&event=-100'),
+            'category': '网元圣唐',
         },
         # {
-        #     'thread_list': get_list('https://news.tvbs.com.tw/realtime/world'),
-        #     'category': '全球',
+        #     'thread_list': get_list('https://www.cna.com.tw/list/aopl.aspx'),
+        #     'category': '国际',
         # },
-        {
-            'thread_list': get_list('https://news.tvbs.com.tw/realtime/tech'),
-            'category': '科技',
-        },
+        # {
+        #     'thread_list': get_list('https://www.cna.com.tw/list/ait.aspx'),
+        #     'category': '科技',
+        # },
     ]
     return thread_list_all
 
@@ -301,18 +303,56 @@ def get_list(url):  # 获取单页JSON数据
     HtmlContent = HtmlContent.replace("<!--", "")
     HtmlContent = HtmlContent.replace("-->", "")
     soup = BeautifulSoup(HtmlContent, "lxml")
-    thread_list = soup.select_one('body > div.container > main > div > article > div.news_list > div.list')
+    thread_list = soup.select_one('#page-root > div.page-container.relative > div.layout_company-root__39kjZ > div.layout_company-content__UJZLe > div > div.index_layout-dims__j85oZ > div.dim-group.dim-group > div > div:nth-child(3) > div > div:nth-child(2) > div.index_news-wrap__xF5q5')
     # print(thread_list)
     return thread_list
+
+def get_json(url):  # 获取单页JSON数据
+    HtmlContent = get_html(url)
+    responsejson = json.loads(HtmlContent)
+    items = responsejson['data']['items']
+    for item in items:
+        print(item['title'], item['abstracts'], item['docid'], item['uri'])
+    return items
+
+def get_json_item(items, category, json_all, new_news_list):
+    for item in items:
+        print(item['title'], item['abstracts'], item['docid'], item['uri'])
+        href = f"https://news.tianyancha.com/ll_{item['docid']}.html"
+
+        # print(title, href, date)
+        if href in json_all:
+            data_info = json_all[href]
+            if 'href' not in data_info:
+                data_info['href'] = href
+        else:
+            data_info = {}
+            data_info['href'] = href
+            data_info['title'] = item['title']
+            datetime_obj = datetime.datetime.fromtimestamp(item['rtm'] / 1000)
+            formatted_date = datetime_obj.strftime("%Y年%m月%d日")
+            data_info['date'] = formatted_date
+            data_info['description'] = item['abstracts'].replace('<em>', '').replace('</em>', '')
+            data_info['category'] = category
+            json_all[href] = data_info
+            # new_news_list.append(data_info)
+            new_news_list.insert(0, data_info)
+            global add_num
+            add_num += 1
+            if add_num > 10:
+                # 只读前十条，太旧的就不看了
+                break
+        # if data_info['href'] == '/zhengce/zhengceku/2023-03/15/content_5746847.htm':
+        #     new_news_list.append(data_info)
 
 def get_page(thread_list, category, json_all, new_news_list):
     li_list = thread_list.select('li')
     for li in li_list:
         a = li.select_one('a')
         if a is not None:
-            title = a.text
+            title = a.select_one('h2').text.strip()
             href = a.attrs['href']
-            date_div = li.select_one('div[class="time"]')
+            date_div = li.select_one('div[class="date"]')
             date = date_div.text.strip() if date_div is not None else ""
             # print(title, href, date)
             if href in json_all:
@@ -426,7 +466,7 @@ def read_last_time(file_name):
         return time.time()
 
 def main():
-    lock_file = 'news_spider.lock'
+    lock_file = f'{file_name}.lock'
     if not os.path.exists(lock_file):
         _extracted_from_main_4(lock_file)
     else:
@@ -450,12 +490,12 @@ def check_local_ip():
     iplocation = soup.select_one('body > div.header > div.location > span')
     print('当前访问IP:', iplocation and iplocation.text)
 
-if __name__ == "__main__":
-    try:
-        # 可能会引发异常的代码
-        check_local_ip()
-    except Exception as e:
-        # 处理异常的代码
-        print('Error:', e)
-        result = None
-    main()
+# if __name__ == "__main__":
+#     try:
+#         # 可能会引发异常的代码
+#         check_local_ip()
+#     except Exception as e:
+#         # 处理异常的代码
+#         print('Error:', e)
+#         result = None
+#     main()
